@@ -225,3 +225,144 @@ if uploaded_pdf is not None:
     st.success("PDF indexed successfully!")
 
 st.markdown("---")
+# --------------------------------------------------------
+# CHAT
+# --------------------------------------------------------
+
+for message in st.session_state.messages:
+
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# --------------------------------------------------------
+# ASK QUESTION
+# --------------------------------------------------------
+
+question = st.chat_input("Ask something about your PDF...")
+
+if question:
+
+    if st.session_state.vectorstore is None:
+        st.warning("Please upload a PDF first.")
+        st.stop()
+
+    st.session_state.messages.append(
+        {
+            "role": "user",
+            "content": question
+        }
+    )
+
+    with st.chat_message("user"):
+        st.markdown(question)
+
+    with st.chat_message("assistant"):
+
+        with st.spinner("Searching document..."):
+
+            docs = st.session_state.vectorstore.similarity_search(
+                question,
+                k=4
+            )
+
+            context = "\n\n".join(
+                [doc.page_content for doc in docs]
+            )
+
+            prompt = f"""
+You are an AI assistant.
+
+Answer ONLY using the information from the context.
+
+If the answer cannot be found in the context, reply exactly:
+
+"I couldn't find this information in the uploaded document."
+
+------------------------
+Context:
+
+{context}
+
+------------------------
+
+Question:
+
+{question}
+
+Answer:
+"""
+
+            response = client.chat.completions.create(
+                model="deepseek/deepseek-chat-v3-0324:free",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0.2,
+            )
+
+            answer = response.choices[0].message.content
+
+        placeholder = st.empty()
+
+        streamed = ""
+
+        for word in answer.split():
+
+            streamed += word + " "
+
+            placeholder.markdown(streamed + "▌")
+
+        placeholder.markdown(streamed)
+
+        with st.expander("Retrieved Context"):
+
+            st.write(context)
+
+        if "couldn't find" in answer.lower():
+
+            st.warning(
+                "The answer was not found in the uploaded document."
+            )
+
+        st.session_state.messages.append(
+            {
+                "role": "assistant",
+                "content": answer
+            }
+        )
+
+# --------------------------------------------------------
+# DOWNLOAD CHAT
+# --------------------------------------------------------
+
+if len(st.session_state.messages):
+
+    history = ""
+
+    for msg in st.session_state.messages:
+
+        history += f"{msg['role'].upper()}\n"
+
+        history += msg["content"]
+
+        history += "\n\n"
+
+    st.download_button(
+        "📥 Download Chat",
+        history,
+        file_name="chat_history.txt",
+        mime="text/plain"
+    )
+
+# --------------------------------------------------------
+# FOOTER
+# --------------------------------------------------------
+
+st.markdown("---")
+
+st.caption(
+    "Built with ❤️ using Streamlit • LangChain • FAISS • OpenRouter"
+)
