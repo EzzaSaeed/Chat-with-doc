@@ -293,7 +293,7 @@ Answer:
 """
 
             response = client.chat.completions.create(
-                model="deepseek/deepseek-chat-v3-0324:free",
+                MODEL = "inclusionai/ling-3.0-flash:free",
                 messages=[
                     {
                         "role": "user",
